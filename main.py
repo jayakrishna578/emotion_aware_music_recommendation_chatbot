@@ -4,46 +4,8 @@ from dotenv import load_dotenv
 from langchain.memory import ConversationBufferWindowMemory
 from streamlit_chat import message
 from huggingface_hub import InferenceClient
+from chatbot_backend import EmotionDetector, AssistantResponder
 
-class EmotionDetector:
-    def __init__(self, hf_token, endpoint_url):
-        self.client = InferenceClient(endpoint_url, token=hf_token)
-    
-    def detect_emotion(self, user_input):
-        prompt = f"You are an AI assistant, you detect the user emotion based on their input and respond in a single word that is the emotion you have detected. The following sentence is the user input: '{user_input}'"
-        
-        # Use the streaming API to process the prompt
-        stream = self.client.text_generation(prompt)
-        
-        parts = stream.split(':')
-        if len(parts) > 1:
-            detected_emotion = parts[1].strip().split(' ')[0]
-        else:
-            detected_emotion = "Unknown"
-        
-        return detected_emotion
-
-class AssistantResponder:
-    def __init__(self, hf_token, endpoint_url):
-        self.client = InferenceClient(endpoint_url, token=hf_token)
-    
-    def generate_response(self, user_input, memory, temperature, top_p, max_length):
-        prompt = f"You are a helpful and kind assistant. Respond to the user query based on the conversation history.\n\n{memory}User: {user_input}\nAssistant:"
-        
-        # Adjust generation parameters as needed
-        gen_kwargs = dict(
-            max_new_tokens=max_length,
-            top_k=5,
-            top_p=top_p,
-            temperature=temperature,
-            repetition_penalty=1.02,
-            stop_sequences=["\n"],
-        )
-        
-        # Use the streaming API to process the prompt
-        stream = self.client.text_generation(prompt, **gen_kwargs)
-        
-        return stream
 
 # Function to initialize conversation memory
 def initialize_memory():

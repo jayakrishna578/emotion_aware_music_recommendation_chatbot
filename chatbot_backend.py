@@ -3,6 +3,7 @@ from pydantic import BaseModel
 import requests
 import os
 from typing import List
+from huggingface_hub import InferenceClient
 
 app = FastAPI()
 
@@ -13,21 +14,46 @@ SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 SPOTIFY_USER_ID = os.getenv('SPOTIFY_USER_ID')
 
 class EmotionDetector:
-    def __init__(self, api_key: str = HUGGING_FACE_API_KEY):
-        self.api_key = api_key
+    def __init__(self, hf_token, endpoint_url):
+        self.client = InferenceClient(endpoint_url, token=hf_token)
+    
+    def detect_emotion(self, user_input):
+        prompt = f"You are an AI assistant, you detect the user emotion based on their input and respond in a single word that is the emotion you have detected. The following sentence is the user input: '{user_input}'"
+        
+        # Use the streaming API to process the prompt
+        stream = self.client.text_generation(prompt)
+        
+        parts = stream.split(':')
+        if len(parts) > 1:
+            detected_emotion = parts[1].strip().split(' ')[0]
+        else:
+            detected_emotion = "Unknown"
+        
+        return detected_emotion
+    
+    
+class AssistantResponder:
+    def __init__(self, hf_token, endpoint_url):
+        self.client = InferenceClient(endpoint_url, token=hf_token)
+    
+    def generate_response(self, user_input, memory, temperature, top_p, max_length):
+        prompt = f"You are a helpful and kind assistant. Respond to the user query based on the conversation history.\n\n{memory}User: {user_input}\nAssistant:"
+        
+        # Adjust generation parameters as needed
+        gen_kwargs = dict(
+            max_new_tokens=max_length,
+            top_k=5,
+            top_p=top_p,
+            temperature=temperature,
+            repetition_penalty=1.02,
+            stop_sequences=["\n"],
+        )
+        
+        # Use the streaming API to process the prompt
+        stream = self.client.text_generation(prompt, **gen_kwargs)
+        
+        return stream
 
-    def detect_emotion(self, user_input: str) -> str:
-        prompt = f"Detect the emotion in the following text: {user_input}"
-        headers = {"Authorization": f"Bearer {self.api_key}"}
-        data = {
-            "inputs": prompt,
-            "parameters": {"return_full_text": False},
-            "options": {"use_cache": False},
-        }
-        response = requests.post("https://api-inference.huggingface.co/models/jayakrishna578/llama-2-7b-health", headers=headers, json=data)
-        response.raise_for_status()  # Raises exception for non-2xx responses
-        content = response.json()
-        return content[0]['generated_text'].split(':')[-1].strip()
 
 class SpotifyManager:
     def __init__(self, client_id: str = SPOTIFY_CLIENT_ID, client_secret: str = SPOTIFY_CLIENT_SECRET, user_id: str = SPOTIFY_USER_ID):
